@@ -1,0 +1,97 @@
+<div class="upload-container">
+  <form id="uploadForm" enctype="multipart/form-data">
+    <input type="file" id="fileInput" name="files" multiple>
+    <button type="submit">アップロード</button>
+  </form>
+  <div id="uploadStatus"></div>
+</div>
+
+<script>
+  const form = document.getElementById('uploadForm') as HTMLFormElement;
+  const statusDiv = document.getElementById('uploadStatus');
+
+  if (!form || !statusDiv) {
+    console.error('必要なDOM要素が見つかりません');
+    throw new Error('必要なDOM要素が見つかりません');
+  }
+
+  interface UploadedFile {
+    filename: string;
+    path: string;
+  }
+
+  interface UploadResponse {
+    message: string;
+    files: UploadedFile[];
+    error?: string;
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(form);
+
+    try {
+      const response = await fetch('/upload', {
+        method: 'POST',
+        body: formData
+      });
+
+      const result: UploadResponse = await response.json();
+      
+      if (response.ok) {
+        statusDiv.innerHTML = `
+          <p>アップロード成功！</p>
+          <ul>
+            ${result.files.map((file: UploadedFile) => `
+              <li><a href="${file.path}" target="_blank">${file.filename}</a></li>
+            `).join('')}
+          </ul>
+        `;
+      } else {
+        statusDiv.innerHTML = `<p class="error">エラー: ${result.error}</p>`;
+      }
+    } catch (error) {
+      statusDiv.innerHTML = '<p class="error">アップロード中にエラーが発生しました</p>';
+    }
+  });
+</script>
+
+<style>
+  .upload-container {
+    margin: 2rem auto;
+    padding: 1rem;
+    max-width: 500px;
+    background: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  }
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  button {
+    padding: 0.5rem 1rem;
+    background: #4a9eff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  button:hover {
+    background: #357abd;
+  }
+
+  .error {
+    color: #dc3545;
+    background: #fce6e6;
+    padding: 0.75rem;
+    border-radius: 4px;
+    border: 1px solid #f5c2c7;
+    margin-top: 0.5rem;
+  }
+</style> 
