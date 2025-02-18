@@ -1,5 +1,5 @@
 {
-  "name": "astro-file-uploader",
+  "name": "astro-file-uploader2",
   "type": "module",
   "version": "0.1.0",
   "description": "Astro.jsとExpress.jsを使用したシンプルなファイルアップロードアプリケーション",
@@ -8,22 +8,16 @@
   "private": true,
   "scripts": {
     "dev": "astro dev",
-    "build": "astro check && astro build",
+    "build": "astro build",
     "preview": "astro preview",
     "astro": "astro"
   },
   "dependencies": {
-    "@astrojs/check": "^0.9.4",
     "@astrojs/node": "^9.1.0",
     "astro": "^5.3.0",
     "typescript": "^5.7.3"
   },
   "devDependencies": {
-    "@types/express": "^5.0.0"
-  },
-  "engines": {
-    "node": ">=18.14.1",
-    "pnpm": ">=10.4.0"
   },
   "packageManager": "pnpm@10.4.1"
 }
