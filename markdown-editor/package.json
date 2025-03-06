@@ -1,0 +1,42 @@
+{
+  "name": "markdown-editor",
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "start": "node ./dist/server/entry.mjs",
+    "format": "prettier -w .",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@astrojs/node": "^9.1.2",
+    "@astrojs/react": "^4.2.1",
+    "@types/marked": "^5.0.2",
+    "@types/react-dom": "^19.0.4",
+    "astro": "^5.4.2",
+    "marked": "^15.0.7",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.21.0",
+    "@tailwindcss/vite": "^4.0.10",
+    "@types/node": "^22.13.9",
+    "@types/react": "^19.0.10",
+    "@typescript-eslint/parser": "^8.26.0",
+    "astro-eslint-parser": "^1.2.1",
+    "eslint": "^9.21.0",
+    "eslint-plugin-astro": "^1.3.1",
+    "flowbite": "^3.1.2",
+    "globals": "^16.0.0",
+    "prettier": "^3.5.3",
+    "prettier-plugin-astro": "^0.14.1",
+    "prettier-plugin-tailwindcss": "^0.6.11",
+    "tailwindcss": "^4.0.10",
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.26.0"
+  },
+  "packageManager": "pnpm@10.5.2"
+}

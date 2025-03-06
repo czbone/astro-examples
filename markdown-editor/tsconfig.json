@@ -1,0 +1,19 @@
+{
+  "extends": "astro/tsconfigs/strict",
+  "include": [".astro/types.d.ts", "**/*"],
+  "exclude": ["dist"],
+  "compilerOptions": {
+    // strictness options
+    "strictNullChecks": true,
+    "noUncheckedIndexedAccess": true,
+
+    // other options
+    "moduleDetection": "force",
+
+    // Path aliases
+    "baseUrl": "./src",
+    "paths": {
+      "@/*": ["*"]
+    }
+  },
+}
