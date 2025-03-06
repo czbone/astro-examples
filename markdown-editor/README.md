@@ -39,9 +39,6 @@ pnpm dev
 # プロダクションビルド
 pnpm build
 
-# ビルドのプレビュー
-pnpm preview
-
 # プロダクションサーバーの起動
 pnpm start
 
