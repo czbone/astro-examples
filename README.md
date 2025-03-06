@@ -39,6 +39,14 @@ AstroとReactを使用したドラッグ&ドロップ対応の実装です。
     - Wordファイル（.doc, .docx）
     - Excelファイル（.xls, .xlsx）
 
+### 5. markdown-editor
+Astroを使用したマークダウンエディタの実装です。
+
+- **主な特徴**:
+  - マークダウン形式のテキスト編集
+  - リアルタイムプレビュー機能
+  - シンプルで使いやすいインターフェース
+
 ## ライセンス
 
 各プロジェクトはMITライセンスの下で公開されています。
@@ -49,3 +57,4 @@ AstroとReactを使用したドラッグ&ドロップ対応の実装です。
 - Expressとの統合が必要な場合: `multi-file-upload`
 - Astro単独で複数ファイル対応が必要な場合: `multi-file-upload2`
 - ドラッグ&ドロップとプレビュー機能が必要な場合: `multi-file-upload-dropzone`
+- マークダウン編集機能が必要な場合: `markdown-editor`
