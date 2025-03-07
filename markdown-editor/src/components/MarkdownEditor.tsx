@@ -732,6 +732,17 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ initialValue = '', onCh
           background-color: #f6f8fa;
           border-radius: 3px;
           word-wrap: normal;
+          margin-bottom: 1.5em; /* コードブロックの下部に余白を追加 */
+        }
+        
+        /* コードブロックの後のp要素の上部マージンを確保 */
+        .markdown-body pre + p {
+          margin-top: 1em;
+        }
+        
+        /* コードブロックの後の画像に十分な余白を確保 */
+        .markdown-body pre + p img {
+          margin-top: 1em;
         }
         
         .markdown-body code {
@@ -760,6 +771,8 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ initialValue = '', onCh
           max-width: 100%;
           box-sizing: content-box;
           border-style: none;
+          margin-top: 1em; /* 画像の上部に余白を追加 */
+          margin-bottom: 1em; /* 画像の下部に余白を追加 */
         }
         
         .markdown-body table {
