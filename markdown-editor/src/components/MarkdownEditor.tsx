@@ -6,6 +6,41 @@ interface MarkdownEditorProps {
   onChange?: (value: string) => void
 }
 
+// YouTubeのURLを抽出して埋め込みiframeに変換する関数
+// この関数は生のテキストに対して実行し、マークアップを追加する
+const processYouTubeUrls = (markdownText: string): string => {
+  // YouTube URLのパターン (標準のURLとshort URLの両方に対応)
+  const youtubeRegex =
+    /(^|\s)(https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})(?:&\S*)?)(\s|$)/g
+
+  // YouTube URLをマークダウンの特殊構文に置き換え、あとで処理できるようにする
+  // ここでは !!!YOUTUBE_ID!!! という特殊なプレースホルダーを使用
+  return markdownText.replace(youtubeRegex, (match, before, url, videoId, after) => {
+    return `${before}!!!YOUTUBE_${videoId}!!!${after}`
+  })
+}
+
+// 特殊プレースホルダーをiframe埋め込みに置き換える関数
+const replaceYouTubePlaceholders = (html: string): string => {
+  const placeholderRegex = /!!!YOUTUBE_([a-zA-Z0-9_-]{11})!!!/g
+
+  return html.replace(placeholderRegex, (match, videoId) => {
+    return `
+      <div class="youtube-embed">
+        <iframe 
+          width="560" 
+          height="315" 
+          src="https://www.youtube.com/embed/${videoId}" 
+          title="YouTube video player" 
+          frameborder="0" 
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+          allowfullscreen>
+        </iframe>
+      </div>
+    `
+  })
+}
+
 // markedのオプション設定
 marked.setOptions({
   breaks: true, // 改行を<br>に変換
@@ -18,6 +53,18 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ initialValue = '', onCh
   const [uploadError, setUploadError] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [cursorPosition, setCursorPosition] = useState({ start: 0, end: 0 })
+
+  // マークダウンをHTMLに変換する関数
+  const renderMarkdown = (markdownText: string): string => {
+    // 1. まずYouTube URLを特殊プレースホルダーに置き換え
+    const processedMarkdown = processYouTubeUrls(markdownText)
+
+    // 2. マークダウンをHTMLに変換
+    const html = marked(processedMarkdown) as string
+
+    // 3. プレースホルダーをiframe埋め込みに置き換え
+    return replaceYouTubePlaceholders(html)
+  }
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value
@@ -138,7 +185,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ initialValue = '', onCh
       <div className="preview-container">
         <div
           className="preview markdown-body"
-          dangerouslySetInnerHTML={{ __html: marked(markdown) }}
+          dangerouslySetInnerHTML={{ __html: renderMarkdown(markdown) }}
         />
       </div>
       <style>{`
@@ -367,6 +414,22 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ initialValue = '', onCh
           border-radius: 4px;
           font-size: 14px;
           box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .youtube-embed {
+          position: relative;
+          width: 100%;
+          padding-bottom: 56.25%; /* 16:9のアスペクト比 */
+          margin-bottom: 16px;
+        }
+        
+        .youtube-embed iframe {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          border: 0;
         }
       `}</style>
     </div>
