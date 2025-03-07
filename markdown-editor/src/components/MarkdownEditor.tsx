@@ -1,5 +1,11 @@
 import { marked } from 'marked'
-import React, { useCallback, useRef, useState } from 'react'
+import Prism from 'prismjs'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+// Markdownの構文ハイライト用のCSS
+import 'prismjs/components/prism-markdown'
+import 'prismjs/components/prism-markup'
+// PrismJSのデフォルトテーマをインポート
+import 'prismjs/themes/prism.css'
 
 interface MarkdownEditorProps {
   initialValue?: string
@@ -41,6 +47,33 @@ const replaceYouTubePlaceholders = (html: string): string => {
   })
 }
 
+// Markdownのシンタックスハイライト用の関数
+const highlightMarkdown = (code: string) => {
+  // 二重表示問題を防ぐためにコードブロック内のコンテンツを置換する特別な処理
+  // コードブロックを一時的なプレースホルダーに置き換える
+  const processedCode = code.replace(/```([a-z]*)([\s\S]*?)```/g, (match, lang, content) => {
+    // 処理しやすいように特殊マーカーに一時的に置き換え
+    return `%%%CODEBLOCK_START_${lang}%%%${content}%%%CODEBLOCK_END%%%`
+  })
+
+  // Prismでハイライト処理
+  let html = ''
+  if (Prism.languages.markdown) {
+    html = Prism.highlight(processedCode, Prism.languages.markdown, 'markdown')
+  } else {
+    html = processedCode
+  }
+
+  // プレースホルダーを元に戻して正しくハイライト
+  html = html.replace(
+    /%%%CODEBLOCK_START_([a-z]*)%%%/g,
+    '<span class="token code-block">```$1</span>'
+  )
+  html = html.replace(/%%%CODEBLOCK_END%%%/g, '<span class="token code-block">```</span>')
+
+  return html
+}
+
 // markedのオプション設定
 marked.setOptions({
   breaks: true, // 改行を<br>に変換
@@ -51,8 +84,19 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ initialValue = '', onCh
   const [markdown, setMarkdown] = useState(initialValue)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [cursorPosition, setCursorPosition] = useState({ start: 0, end: 0 })
+  const [currentLine, setCurrentLine] = useState(1)
+  const [lineCount, setLineCount] = useState(1)
+  const editorContainerRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const highlightedPreRef = useRef<HTMLPreElement>(null)
+
+  // 画像のドロップ位置を制御する前に、フォーカスとカーソル位置を設定
+  const focusEditor = () => {
+    if (textareaRef.current) {
+      textareaRef.current.focus()
+    }
+  }
 
   // マークダウンをHTMLに変換する関数
   const renderMarkdown = (markdownText: string): string => {
@@ -66,36 +110,170 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ initialValue = '', onCh
     return replaceYouTubePlaceholders(html)
   }
 
+  // 行数の計算
+  useEffect(() => {
+    if (markdown) {
+      setLineCount((markdown.match(/\n/g) || []).length + 1)
+    } else {
+      setLineCount(1)
+    }
+  }, [markdown])
+
+  // エディタと行番号のスクロール同期を設定
+  useEffect(() => {
+    if (textareaRef.current) {
+      const updateScroll = () => {
+        // ハイライト表示の同期
+        if (highlightedPreRef.current) {
+          highlightedPreRef.current.scrollTop = textareaRef.current!.scrollTop
+          highlightedPreRef.current.scrollLeft = textareaRef.current!.scrollLeft
+        }
+
+        // 行番号の同期
+        const lineNumbersContainer = textareaRef
+          .current!.closest('.editor-area')
+          ?.querySelector('.line-numbers')
+        if (lineNumbersContainer) {
+          const lineNumbersElement = lineNumbersContainer as HTMLElement
+          lineNumbersElement.scrollTop = textareaRef.current!.scrollTop
+        }
+      }
+
+      // 初期スクロール位置を設定
+      updateScroll()
+
+      // スクロールイベントリスナーを追加
+      textareaRef.current.addEventListener('scroll', updateScroll)
+
+      return () => {
+        // クリーンアップ
+        textareaRef.current?.removeEventListener('scroll', updateScroll)
+      }
+    }
+  }, [])
+
+  // エディタコンテンツのシンタックスハイライト
+  useEffect(() => {
+    if (highlightedPreRef.current && textareaRef.current) {
+      const html = highlightMarkdown(markdown)
+      highlightedPreRef.current.innerHTML = html
+
+      // スクロール位置の同期
+      highlightedPreRef.current.scrollTop = textareaRef.current.scrollTop
+      highlightedPreRef.current.scrollLeft = textareaRef.current.scrollLeft
+    }
+  }, [markdown])
+
+  // 現在のカーソル位置から行番号を計算
+  const calculateCurrentLine = (position: number) => {
+    const textBeforeCursor = markdown.substring(0, position)
+    return (textBeforeCursor.match(/\n/g) || []).length + 1
+  }
+
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value
     setMarkdown(newValue)
     onChange?.(newValue)
+
     // カーソル位置を更新
-    setCursorPosition({
+    const newPosition = {
       start: e.target.selectionStart || 0,
       end: e.target.selectionEnd || 0
-    })
+    }
+    setCursorPosition(newPosition)
+    setCurrentLine(calculateCurrentLine(newPosition.start))
   }
 
   const handleSelect = (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
+    const textarea = e.currentTarget
+    const newPosition = {
+      start: textarea.selectionStart || 0,
+      end: textarea.selectionEnd || 0
+    }
+    setCursorPosition(newPosition)
+    setCurrentLine(calculateCurrentLine(newPosition.start))
+  }
+
+  // カーソル移動時の現在行を更新
+  const handleKeyUp = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const textarea = e.currentTarget
     setCursorPosition({
       start: textarea.selectionStart || 0,
       end: textarea.selectionEnd || 0
     })
+    setCurrentLine(calculateCurrentLine(textarea.selectionStart || 0))
+  }
+
+  // タブキーの処理
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Tab') {
+      e.preventDefault()
+      const textarea = e.currentTarget
+      const start = textarea.selectionStart
+      const end = textarea.selectionEnd
+
+      // 選択されたテキストの前後にタブを挿入
+      const newValue =
+        markdown.substring(0, start) +
+        '  ' + // 2スペースでタブを表現
+        markdown.substring(end)
+
+      setMarkdown(newValue)
+      onChange?.(newValue)
+
+      // カーソル位置を更新
+      setTimeout(() => {
+        textarea.selectionStart = start + 2
+        textarea.selectionEnd = start + 2
+      }, 0)
+    }
+  }
+
+  // テキストエリアのスクロールを背後のハイライト要素と行番号に同期
+  const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
+    if (highlightedPreRef.current) {
+      highlightedPreRef.current.scrollTop = e.currentTarget.scrollTop
+      highlightedPreRef.current.scrollLeft = e.currentTarget.scrollLeft
+    }
+
+    // 行番号コンテナも同期
+    const lineNumbersContainer = e.currentTarget
+      .closest('.editor-area')
+      ?.querySelector('.line-numbers')
+    if (lineNumbersContainer) {
+      const lineNumbersElement = lineNumbersContainer as HTMLElement
+      lineNumbersElement.scrollTop = e.currentTarget.scrollTop
+    }
+  }
+
+  // 行番号の生成
+  const generateLineNumbers = () => {
+    return Array.from({ length: lineCount }, (_, i) => (
+      <div
+        key={i + 1}
+        className={`line-number ${currentLine === i + 1 ? 'current-line-number' : ''}`}
+      >
+        {i + 1}
+      </div>
+    ))
   }
 
   const handleDrop = useCallback(
-    async (e: React.DragEvent<HTMLTextAreaElement>) => {
+    async (e: React.DragEvent<HTMLDivElement>) => {
       e.preventDefault()
       const files = e.dataTransfer.files
 
-      // ドロップした瞬間のカーソル位置を保存（テキストエリアがフォーカスを持っている場合）
-      if (document.activeElement === e.currentTarget) {
-        setCursorPosition({
-          start: e.currentTarget.selectionStart || 0,
-          end: e.currentTarget.selectionEnd || 0
-        })
+      // テキストエリアにフォーカスを確保
+      focusEditor()
+
+      // 現在のカーソル位置を取得 (フォーカスが設定されていれば)
+      let insertPosition = 0
+      if (textareaRef.current) {
+        // カーソル位置が設定されていない場合、末尾に挿入
+        insertPosition = textareaRef.current.selectionStart || markdown.length
+      } else {
+        // フォールバック: 末尾に挿入
+        insertPosition = markdown.length
       }
 
       for (let i = 0; i < files.length; i++) {
@@ -133,15 +311,30 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ initialValue = '', onCh
             const imageUrl = data.url
             console.log('画像のアップロードに成功:', imageUrl)
 
-            // 保存していたカーソル位置または末尾に画像を挿入
-            const { start, end } = cursorPosition
+            // キャレット位置に画像を挿入
+            const markdownImage = `![${file.name}](${imageUrl})`
             const newText =
-              markdown.substring(0, start) +
-              `![${file.name}](${imageUrl})` +
-              markdown.substring(end)
+              markdown.substring(0, insertPosition) +
+              markdownImage +
+              markdown.substring(insertPosition)
 
             setMarkdown(newText)
             onChange?.(newText)
+
+            // 新しいカーソル位置を設定（画像の後ろ）
+            const newPosition = insertPosition + markdownImage.length
+            if (textareaRef.current) {
+              // カーソル位置を更新
+              textareaRef.current.selectionStart = newPosition
+              textareaRef.current.selectionEnd = newPosition
+              // カーソル位置の状態も更新
+              setCursorPosition({
+                start: newPosition,
+                end: newPosition
+              })
+              setCurrentLine(calculateCurrentLine(newPosition))
+            }
+
             // エラー状態をクリア
             setUploadError(null)
           } catch (error) {
@@ -159,30 +352,62 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ initialValue = '', onCh
         }
       }
     },
-    [markdown, onChange, cursorPosition]
+    [markdown, onChange, calculateCurrentLine]
   )
 
-  const handleDragOver = (e: React.DragEvent<HTMLTextAreaElement>) => {
+  // エディタエリアのクリック処理
+  const handleEditorAreaClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    // テキストエリアにフォーカスを移す
+    focusEditor()
+  }
+
+  // ドラッグオーバー時の処理
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
+    // ドラッグ中にフォーカスを確保
+    focusEditor()
   }
 
   return (
     <div className="markdown-editor">
-      <div className="editor-container">
-        <textarea
-          ref={textareaRef}
-          value={markdown}
-          onChange={handleChange}
-          onSelect={handleSelect}
+      <div className="editor-container" ref={editorContainerRef}>
+        <div className="editor-header">
+          <span className="editor-status">
+            行: {currentLine}/{lineCount}
+          </span>
+        </div>
+        <div
+          className="editor-area"
           onDrop={handleDrop}
           onDragOver={handleDragOver}
-          placeholder="Markdownを入力してください..."
-          className="editor"
-        />
+          onClick={handleEditorAreaClick}
+        >
+          <div className="line-numbers">{generateLineNumbers()}</div>
+          <div className="editor-wrapper">
+            <div className="syntax-highlight-container">
+              <pre ref={highlightedPreRef} className="syntax-highlighter" aria-hidden="true"></pre>
+              <textarea
+                ref={textareaRef}
+                value={markdown}
+                onChange={handleChange}
+                onSelect={handleSelect}
+                onKeyUp={handleKeyUp}
+                onKeyDown={handleKeyDown}
+                onScroll={handleScroll}
+                placeholder="Markdownを入力してください..."
+                className="editor"
+                spellCheck={false}
+              />
+            </div>
+          </div>
+        </div>
         {uploading && <div className="upload-status">画像をアップロード中...</div>}
         {uploadError && <div className="upload-error">{uploadError}</div>}
       </div>
       <div className="preview-container">
+        <div className="preview-header">
+          <span className="preview-title">プレビュー</span>
+        </div>
         <div
           className="preview markdown-body"
           dangerouslySetInnerHTML={{ __html: renderMarkdown(markdown) }}
@@ -199,28 +424,209 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ initialValue = '', onCh
         .editor-container,
         .preview-container {
           flex: 1;
-          padding: 1rem;
-          border: 1px solid #ccc;
-          border-radius: 4px;
+          border: 1px solid #ddd;
+          border-radius: 8px;
           position: relative;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        
+        .editor-header, .preview-header {
+          padding: 0.5rem 1rem;
+          background-color: #f5f7f9;
+          border-bottom: 1px solid #ddd;
+          font-size: 0.9rem;
+          color: #555;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        
+        .editor-status, .preview-title {
+          font-family: monospace;
         }
 
-        .editor {
+        .editor-area {
+          display: flex;
+          flex: 1;
+          overflow: hidden;
+          position: relative;
+        }
+        
+        .line-numbers {
+          padding: 1rem 0;
+          background-color: #f5f7f9;
+          border-right: 1px solid #eee;
+          color: #999;
+          font-family: 'Fira Code', 'Consolas', monospace;
+          font-size: 15px;
+          text-align: right;
+          user-select: none;
+          min-width: 3rem;
+          overflow-y: auto;
+          overflow-x: hidden;
+          scrollbar-width: none; /* Firefox */
+          -ms-overflow-style: none; /* IE/Edge */
+          position: sticky;
+          left: 0;
+          z-index: 3;
+          height: 100%;
+        }
+        
+        /* Chromeのスクロールバーを非表示 */
+        .line-numbers::-webkit-scrollbar {
+          display: none;
+        }
+        
+        .line-number {
+          padding: 0 0.5rem;
+          line-height: 1.5;
+          height: 1.5em;
+          white-space: nowrap;
+        }
+        
+        .current-line-number {
+          color: #0366d6;
+          font-weight: bold;
+        }
+
+        .editor-wrapper {
+          position: relative;
           width: 100%;
           height: 100%;
-          min-height: 500px;
+          overflow: hidden;
+        }
+        
+        .syntax-highlight-container {
+          position: relative;
+          width: 100%;
+          height: 100%;
+          overflow: hidden;
+        }
+        
+        .syntax-highlighter {
+          margin: 0;
+          padding: 1rem;
+          font-family: 'Fira Code', 'Consolas', monospace;
+          font-size: 15px;
+          line-height: 1.5;
+          color: #333;
+          white-space: pre-wrap;
+          word-wrap: break-word;
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: #fff;
+          pointer-events: none;
+          z-index: 1;
+          overflow: auto;
+          box-sizing: border-box;
+        }
+        
+        .editor {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
           padding: 1rem;
           border: none;
           resize: none;
-          font-family: monospace;
-          font-size: 14px;
+          font-family: 'Fira Code', 'Consolas', monospace;
+          font-size: 15px;
           line-height: 1.5;
+          color: rgba(0, 0, 0, 0);
+          background-color: transparent;
+          z-index: 2;
+          caret-color: #333;
+          outline: none;
+          box-sizing: border-box;
+          overflow: auto;
+        }
+
+        /* タブサイズを固定 */
+        .editor, .syntax-highlighter {
+          tab-size: 2;
+          -moz-tab-size: 2;
+        }
+        
+        /* テキストカーソルを表示 */
+        .editor::selection {
+          background-color: rgba(0, 0, 255, 0.1);
+        }
+        
+        /* プレースホルダーテキストを表示 */
+        .editor::placeholder {
+          color: #999;
+          opacity: 1;
         }
 
         .preview {
           height: 100%;
           overflow-y: auto;
           padding: 1rem;
+          background-color: #fff;
+        }
+        
+        /* Markdown構文ハイライト */
+        .token.title,
+        .token.important,
+        .token.header-1,
+        .token.header-2,
+        .token.header-3,
+        .token.header-4,
+        .token.header-5,
+        .token.header-6 {
+          color: #d73a49 !important;
+          font-weight: bold;
+        }
+        
+        .token.bold {
+          color: #24292e;
+          font-weight: bold;
+        }
+        
+        .token.italic {
+          color: #24292e;
+          font-style: italic;
+        }
+        
+        .token.strike {
+          color: #24292e;
+          text-decoration: line-through;
+        }
+        
+        .token.url,
+        .token.link {
+          color: #0366d6;
+          text-decoration: none;
+        }
+        
+        .token.blockquote {
+          color: #6a737d;
+        }
+        
+        .token.code {
+          color: #032f62;
+          background-color: rgba(27, 31, 35, 0.05);
+          padding: 0.2em 0.4em;
+          border-radius: 3px;
+        }
+        
+        .token.list {
+          color: #6f42c1;
+        }
+        
+        .token.punctuation {
+          color: #6a737d;
+        }
+        
+        .token.comment {
+          color: #6a737d;
         }
         
         /* Markdownスタイル */
@@ -402,6 +808,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ initialValue = '', onCh
           border-radius: 4px;
           font-size: 14px;
           box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          z-index: 10;
         }
         
         .upload-error {
@@ -414,6 +821,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ initialValue = '', onCh
           border-radius: 4px;
           font-size: 14px;
           box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          z-index: 10;
         }
 
         .youtube-embed {
@@ -430,6 +838,18 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ initialValue = '', onCh
           width: 100%;
           height: 100%;
           border: 0;
+        }
+
+        @media (max-width: 768px) {
+          .markdown-editor {
+            flex-direction: column;
+          }
+        }
+
+        /* コードブロックのトークンスタイル */
+        .token.code-block {
+          color: #07a;
+          font-weight: bold;
         }
       `}</style>
     </div>
