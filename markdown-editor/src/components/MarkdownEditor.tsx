@@ -10,6 +10,7 @@ import 'prismjs/themes/prism.css'
 interface MarkdownEditorProps {
   initialValue?: string
   onChange?: (value: string) => void
+  fileName?: string // 編集するファイル名
 }
 
 // YouTubeのURLを抽出して埋め込みiframeに変換する関数
@@ -80,16 +81,100 @@ marked.setOptions({
   gfm: true // GitHub Flavored Markdownを有効化
 })
 
-const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ initialValue = '', onChange }) => {
+const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
+  initialValue = '',
+  onChange,
+  fileName = 'document.md'
+}) => {
   const [markdown, setMarkdown] = useState(initialValue)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [cursorPosition, setCursorPosition] = useState({ start: 0, end: 0 })
   const [currentLine, setCurrentLine] = useState(1)
   const [lineCount, setLineCount] = useState(1)
+  const [currentFileName, setCurrentFileName] = useState(fileName)
+  const [saving, setSaving] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<{
+    type: 'success' | 'error'
+    message: string
+  } | null>(null)
+  const [loading, setLoading] = useState(false)
   const editorContainerRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const highlightedPreRef = useRef<HTMLPreElement>(null)
+
+  // 初期データの読み込み
+  useEffect(() => {
+    const loadInitialData = async () => {
+      if (fileName) {
+        setLoading(true)
+        try {
+          const response = await fetch(`/api/file?file=${encodeURIComponent(fileName)}`)
+
+          if (!response.ok) {
+            throw new Error(`ファイル読み込みエラー: ${response.status}`)
+          }
+
+          const data = await response.json()
+          if (data.content !== undefined) {
+            setMarkdown(data.content)
+            onChange?.(data.content)
+          }
+        } catch (error) {
+          console.error('初期データ読み込みエラー:', error)
+        } finally {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadInitialData()
+  }, [fileName, onChange])
+
+  // ファイル保存処理
+  const saveFile = async () => {
+    if (!currentFileName) return
+
+    setSaving(true)
+    setSaveStatus(null)
+
+    try {
+      const response = await fetch('/api/file', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          fileName: currentFileName,
+          content: markdown
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || '保存に失敗しました')
+      }
+
+      setSaveStatus({
+        type: 'success',
+        message: '保存しました'
+      })
+
+      // 成功メッセージは3秒後に消える
+      setTimeout(() => {
+        setSaveStatus(null)
+      }, 3000)
+    } catch (error) {
+      console.error('ファイル保存エラー:', error)
+      setSaveStatus({
+        type: 'error',
+        message: error instanceof Error ? error.message : '保存に失敗しました'
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
 
   // 画像のドロップ位置を制御する前に、フォーカスとカーソル位置を設定
   const focusEditor = () => {
@@ -372,10 +457,28 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ initialValue = '', onCh
     <div className="markdown-editor">
       <div className="editor-container" ref={editorContainerRef}>
         <div className="editor-header">
-          <span className="editor-status">
-            行: {currentLine}/{lineCount}
-          </span>
+          <div className="editor-info">
+            <span className="file-name">{currentFileName}</span>
+            <span className="editor-status">
+              行: {currentLine}/{lineCount}
+            </span>
+          </div>
+          <div className="editor-actions">
+            <button
+              className={`save-button ${saving ? 'saving' : ''}`}
+              onClick={saveFile}
+              disabled={saving || loading}
+            >
+              {saving ? '保存中...' : '保存'}
+            </button>
+          </div>
         </div>
+        {saveStatus && <div className={`save-status ${saveStatus.type}`}>{saveStatus.message}</div>}
+        {loading && (
+          <div className="loading-overlay">
+            <div className="loading-spinner"></div>
+          </div>
+        )}
         <div
           className="editor-area"
           onDrop={handleDrop}
@@ -444,8 +547,106 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ initialValue = '', onCh
           align-items: center;
         }
         
+        .editor-info {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+        }
+        
+        .file-name {
+          font-weight: bold;
+          color: #333;
+        }
+        
         .editor-status, .preview-title {
           font-family: monospace;
+        }
+        
+        .editor-actions {
+          display: flex;
+          gap: 0.5rem;
+        }
+        
+        .save-button {
+          padding: 4px 12px;
+          background-color: #0ea5e9;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 0.9rem;
+          transition: background-color 0.2s;
+        }
+        
+        .save-button:hover {
+          background-color: #0284c7;
+        }
+        
+        .save-button:disabled {
+          background-color: #94a3b8;
+          cursor: not-allowed;
+        }
+        
+        .save-button.saving {
+          background-color: #94a3b8;
+        }
+        
+        .save-status {
+          position: absolute;
+          top: 3rem;
+          right: 1rem;
+          padding: 6px 12px;
+          border-radius: 4px;
+          font-size: 0.9rem;
+          z-index: 10;
+          animation: fadeIn 0.3s, fadeOut 0.3s 2.7s;
+        }
+        
+        .save-status.success {
+          background-color: #dcfce7;
+          color: #166534;
+        }
+        
+        .save-status.error {
+          background-color: #fee2e2;
+          color: #b91c1c;
+        }
+        
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        
+        @keyframes fadeOut {
+          from { opacity: 1; }
+          to { opacity: 0; }
+        }
+        
+        .loading-overlay {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: rgba(255, 255, 255, 0.7);
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          z-index: 100;
+        }
+        
+        .loading-spinner {
+          width: 30px;
+          height: 30px;
+          border: 3px solid #f3f3f3;
+          border-top: 3px solid #0ea5e9;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
         }
 
         .editor-area {
