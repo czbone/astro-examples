@@ -437,7 +437,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
         }
       }
     },
-    [markdown, onChange, calculateCurrentLine]
+    [markdown, onChange, calculateCurrentLine, focusEditor]
   )
 
   // エディタエリアのクリック処理
