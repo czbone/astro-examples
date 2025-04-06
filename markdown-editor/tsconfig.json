@@ -4,16 +4,27 @@
   "exclude": ["dist"],
   "compilerOptions": {
     // strictness options
-    "strictNullChecks": true,
     "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
 
-    // other options
+    // unused checks
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+
+    // module resolution
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
     "moduleDetection": "force",
+    
+    // additional helpful options
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
 
     // Path aliases
     "baseUrl": "./src",
     "paths": {
       "@/*": ["*"]
     }
-  },
+  }
 }

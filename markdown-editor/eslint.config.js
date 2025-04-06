@@ -23,7 +23,23 @@ export default [
       'semi-style': ['error', 'first'],
       'no-extra-semi': 'error',
       'no-unexpected-multiline': 'error',
-      'no-unreachable': 'error'
+      'no-unreachable': 'error',
+
+      // セキュリティ関連のルール
+      'no-eval': 'error',
+      'no-implied-eval': 'error',
+      'no-unsafe-finally': 'error',
+      'no-unsafe-negation': 'error',
+
+      // コード品質の向上
+      'max-len': [
+        'warn',
+        { code: 100, ignoreUrls: true, ignoreStrings: true, ignoreTemplateLiterals: true }
+      ],
+      complexity: ['warn', { max: 10 }],
+
+      // パフォーマンス最適化
+      'no-await-in-loop': 'warn'
     }
   },
   {
@@ -43,24 +59,31 @@ export default [
     }
   },
   {
-    // Define the configuration for `<script>` tag.
-    // Script in `<script>` is assigned a virtual file name with the `.js` extension.
     files: ['**/*.{ts,tsx}', '**/*.astro/*.js'],
     languageOptions: {
-      parser: typescriptParser
+      parser: typescriptParser,
+      parserOptions: {
+        project: './tsconfig.json',
+        tsconfigRootDir: process.cwd()
+      }
     },
     rules: {
       // Note: you must disable the base rule as it can report incorrect errors
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': [
-        'warn', //'error'
+        'warn',
         {
           argsIgnorePattern: '^_',
           destructuredArrayIgnorePattern: '^_'
         }
       ],
       '@typescript-eslint/no-non-null-assertion': 'off',
-      '@typescript-eslint/no-explicit-any': 'warn'
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/triple-slash-reference': 'off',
+
+      // TypeScriptの厳格化
+      '@typescript-eslint/explicit-function-return-type': 'warn',
+      '@typescript-eslint/strict-boolean-expressions': 'warn'
     }
   },
   {
