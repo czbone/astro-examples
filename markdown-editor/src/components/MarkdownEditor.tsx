@@ -363,15 +363,16 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i]
-        if (file && file.type.startsWith('image/')) {
+        if (file && (file.type.startsWith('image/') || file.type === 'application/pdf')) {
           setUploading(true)
           setUploadError(null)
 
           const formData = new FormData()
-          formData.append('image', file)
+          // PDFファイルの場合は 'pdf' として、画像の場合は 'image' として送信
+          formData.append(file.type === 'application/pdf' ? 'pdf' : 'image', file)
 
           try {
-            console.log('画像をアップロード中:', file.name)
+            console.log(`${file.type === 'application/pdf' ? 'PDF' : '画像'}をアップロード中:`, file.name)
 
             const response = await fetch('/api/upload', {
               method: 'POST',
@@ -390,24 +391,31 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
 
             // 成功した場合の処理
             if (!data.url) {
-              throw new Error('画像URLが見つかりません')
+              throw new Error('ファイルURLが見つかりません')
             }
 
-            const imageUrl = data.url
-            console.log('画像のアップロードに成功:', imageUrl)
+            const fileUrl = data.url
+            console.log(`ファイルのアップロードに成功:`, fileUrl)
 
-            // キャレット位置に画像を挿入
-            const markdownImage = `![${file.name}](${imageUrl})`
+            // ファイルタイプに応じてMarkdownを生成
+            let markdownContent = ''
+            if (file.type.startsWith('image/')) {
+              markdownContent = `![${file.name}](${fileUrl})`
+            } else if (file.type === 'application/pdf') {
+              markdownContent = `[${file.name}](${fileUrl})`
+            }
+
+            // キャレット位置にファイルのMarkdownを挿入
             const newText =
               markdown.substring(0, insertPosition) +
-              markdownImage +
+              markdownContent +
               markdown.substring(insertPosition)
 
             setMarkdown(newText)
             onChange?.(newText)
 
-            // 新しいカーソル位置を設定（画像の後ろ）
-            const newPosition = insertPosition + markdownImage.length
+            // 新しいカーソル位置を設定（ファイルの後ろ）
+            const newPosition = insertPosition + markdownContent.length
             if (textareaRef.current) {
               // カーソル位置を更新
               textareaRef.current.selectionStart = newPosition
@@ -423,9 +431,9 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
             // エラー状態をクリア
             setUploadError(null)
           } catch (error) {
-            console.error('画像のアップロードに失敗しました:', error)
+            console.error('ファイルのアップロードに失敗しました:', error)
             setUploadError(
-              `画像のアップロードに失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}`
+              `ファイルのアップロードに失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}`
             )
           } finally {
             setUploading(false)
@@ -433,7 +441,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
         } else if (file) {
           setUploadError(`サポートされていないファイル形式です: ${file.type}`)
         } else {
-          setUploadError('画像ファイルのみアップロード可能です')
+          setUploadError('画像またはPDFファイルのみアップロード可能です')
         }
       }
     },
