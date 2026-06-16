@@ -4,11 +4,13 @@ import { mkdir, writeFile } from 'fs/promises'
 import { join } from 'path'
 
 export const POST: APIRoute = async ({ request }) => {
-  console.log('画像アップロードAPIが呼び出されました')
+  console.log('ファイルアップロードAPIが呼び出されました')
 
   try {
     const formData = await request.formData()
-    const file = formData.get('image') as File
+    const imageFile = formData.get('image') as File | null
+    const pdfFile = formData.get('pdf') as File | null
+    const file = imageFile || pdfFile
 
     if (!file) {
       console.error('ファイルが見つかりません')
@@ -21,6 +23,7 @@ export const POST: APIRoute = async ({ request }) => {
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
     console.log(`ファイルサイズ: ${buffer.length} バイト`)
+    console.log(`ファイルタイプ: ${file.type}`)
 
     // ファイル名を一意にする
     const timestamp = Date.now()
