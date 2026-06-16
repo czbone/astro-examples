@@ -9,6 +9,10 @@ services:
       - "${PORT:-3000}:${PORT:-3000}"
     environment:
       - PORT=${PORT:-3000}
+    volumes:
+      - uploads_data:/app/uploads
 networks:
   coolify:
     external: true
+volumes:
+  uploads_data:

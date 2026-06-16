@@ -1,4 +1,4 @@
-# Coolify向けAstro + Node.js + PostgreSQL + Prismaアプリケーション用Dockerfile
+# Coolify向けAstro SSR standaloneアプリケーション用Dockerfile
 # マルチステージビルドで本番イメージを軽量化
 
 # ベースステージ: Node.js 24 Alpine
@@ -6,17 +6,7 @@ FROM node:24-alpine AS base
 WORKDIR /app
 
 # pnpmのインストール
-RUN corepack enable && corepack prepare pnpm@latest --activate
-
-# 依存関係ステージ
-FROM base AS dependencies
-WORKDIR /app
-
-# package.jsonとロックファイルをコピー
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-
-# 本番依存関係のインストール
-RUN pnpm install --frozen-lockfile --prod
+RUN corepack enable && corepack prepare pnpm@11.7.0 --activate
 
 # ビルドステージ
 FROM base AS build
@@ -31,9 +21,6 @@ RUN pnpm install --frozen-lockfile
 # ソースコードをコピー
 COPY . .
 
-# Prisma Clientの生成
-RUN pnpm run db:generate
-
 # Astroアプリケーションのビルド
 RUN pnpm run build
 
@@ -41,29 +28,18 @@ RUN pnpm run build
 FROM node:24-alpine AS production
 WORKDIR /app
 
-# 必要なシステムパッケージをインストール（PostgreSQL接続用）
-RUN apk add --no-cache bash curl
-
-# pnpmのインストール（Prismaマイグレーション実行に必要）
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# ヘルスチェック用
+RUN apk add --no-cache curl
 
 # 非rootユーザーの作成
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001
 
-# package.jsonとロックファイルをコピー
-COPY --chown=nodejs:nodejs package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-
-# 本番依存関係をdependenciesステージからコピー
-COPY --from=dependencies --chown=nodejs:nodejs /app/node_modules ./node_modules
-
 # ビルド成果物をコピー
 COPY --from=build --chown=nodejs:nodejs /app/dist ./dist
-COPY --from=build --chown=nodejs:nodejs /app/src/generated ./src/generated
 
-# Prismaスキーマとマイグレーションファイルをコピー（マイグレーション実行に必要）
-COPY --chown=nodejs:nodejs prisma ./prisma
-COPY --chown=nodejs:nodejs prisma.config.ts ./
+# アップロードファイル保存用ディレクトリ
+RUN mkdir -p uploads && chown nodejs:nodejs uploads
 
 # 起動スクリプトをコピー
 COPY --chown=nodejs:nodejs entrypoint.sh healthcheck.sh ./
