@@ -8,6 +8,13 @@ WORKDIR /app
 # pnpmのインストール
 RUN corepack enable && corepack prepare pnpm@11.7.0 --activate
 
+# 本番依存関係ステージ
+FROM base AS dependencies
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile --prod
+
 # ビルドステージ
 FROM base AS build
 WORKDIR /app
@@ -35,7 +42,9 @@ RUN apk add --no-cache curl
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001
 
-# ビルド成果物をコピー
+# ビルド成果物と本番依存関係をコピー
+COPY --chown=nodejs:nodejs package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY --from=dependencies --chown=nodejs:nodejs /app/node_modules ./node_modules
 COPY --from=build --chown=nodejs:nodejs /app/dist ./dist
 
 # アップロードファイル保存用ディレクトリ
